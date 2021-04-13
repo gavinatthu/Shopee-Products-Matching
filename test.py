@@ -1,98 +1,54 @@
-import numpy as np
-import pandas as pd
-import cv2, matplotlib.pyplot as plt
-from PIL import Image
-from tqdm import tqdm_notebook
-import gc
-
 import torch
-import torchvision.models as models
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data.dataset import Dataset
+import numpy as np
+from data_loader import *
+from Methods import *
 
-import os
-from data_loader import Dataloader
-
-os.environ["CUDA_VISIBLE_deviceS"] = "5"
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-DATA_PATH = '/data/shopee_product_matching/'
-'''
-train = pd.read_csv(DATA_PATH + 'train.csv')
-train['image'] = DATA_PATH + 'train_images/' + train['image']
-tmp = train.groupby('label_group').posting_id.agg('unique').to_dict()
-train['target'] = train.label_group.map(tmp)
-train = train.sort_values(by='label_group')
-
-class ShopeeImageDataset(Dataset):
-    def __init__(self, img_path, transform):
-        self.img_path = img_path
-        self.transform = transform
-        
-    def __getitem__(self, index):
-        img = Image.open(self.img_path[index]).convert('RGB')
-        img = self.transform(img)
-        return img
-    
-    def __len__(self):
-        return len(self.img_path)
-
-imagedataset = ShopeeImageDataset(
-    train['image'].values[:100],
-    transforms.Compose([
-        transforms.Resize((512, 512)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-]))
-'''
-
-imagedataset = Dataloader(DATA_PATH, 512, 512)
-
-imageloader = torch.utils.data.DataLoader(
-    imagedataset,
-    batch_size=10, shuffle=False, num_workers=2
-)
-
-
-
-
-
-# pretrain models
-class ShopeeImageEmbeddingNet(nn.Module):
-    def __init__(self):
-        super(ShopeeImageEmbeddingNet, self).__init__()
-              
-        model = models.resnet50(True)
-        model.avgpool = nn.AdaptiveMaxPool2d(output_size=(1, 1))
-        model = nn.Sequential(*list(model.children())[:-1])
-        model.eval()
-        self.model = model
-        
-    def forward(self, img):        
-        out = self.model(img)
-        return out
-
-imgmodel = ShopeeImageEmbeddingNet()
-imgmodel = imgmodel.to(device)
-
-imagefeat = []
-with torch.no_grad():
-    for data in tqdm_notebook(imageloader):
-        data = data.to(device)
-        feat = imgmodel(data)
-        feat = feat.reshape(feat.shape[0], feat.shape[1])
-        feat = feat.data.cpu().numpy()
-        
-        imagefeat.append(feat)
 
 from sklearn.preprocessing import normalize
 
-# l2 norm to kill all the sim in 0-1
-imagefeat = np.vstack(imagefeat)
-imagefeat = normalize(imagefeat)
+import os
 
-print(np.dot(imagefeat[2], imagefeat.T)[:10])
+os.environ["CUDA_VISIBLE_deviceS"] = "5"
+
+device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
+
+DATA_PATH = '/data/shopee_product_matching/'
+BATCH_SIZE = 100
+IMG_SIZE = 512
+
+train = read_sort(DATA_PATH)
+
+imagedataset = Dataloader(train['image'].values[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
+
+imageloader = torch.utils.data.DataLoader(
+    imagedataset,
+    BATCH_SIZE, shuffle=False, num_workers=2)
+
+
+imgmodel = ShopeeImageEmbeddingNet().to(device)
+
+imagefeat = []
+with torch.no_grad():
+    for i, data in enumerate(imageloader):
+        data = data.to(device)
+        feat = imgmodel(data)
+        
+        #feat = feat.reshape(feat.shape[0], feat.shape[1]) #这个feat多了一个维度 需要修改imgmodel库函数 现在方案是在之后squeeze
+
+        imagefeat.append(feat.data.cpu().numpy())
+
+
+imagefeat = np.squeeze(imagefeat)                         # 压缩之前多的单元素维度
+
+imagefeat = normalize(imagefeat)                          # 用sklearn实现的归一化 可以用numpy改写
+
+
+INDEX = 2       # 输入待检索的图片序号
+TOP_K = 5       # 输出前5个最相似的序号
+
+cor = np.dot(imagefeat[INDEX], imagefeat.T)
+top_index = np.argsort(-cor)[0:TOP_K]                     # 对于后验可以划分一个合适的界限
+
+print("Posterior:",cor[top_index])
+print("Predicted group:",train.iloc[top_index])
+print("Target group:",train.head())
