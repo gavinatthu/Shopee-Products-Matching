@@ -14,5 +14,5 @@ Pytorch 1.8.1
 CUDA 11.1  
 Torchvision 0.9.1  
 Pands 1.2.3  
-Pillow 8.1.2
+Pillow 8.1.2  
 Numpy 1.19.5  
