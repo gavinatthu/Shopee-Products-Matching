@@ -16,7 +16,7 @@ DATA_PATH = '/data/shopee_product_matching/'
 BATCH_SIZE = 100
 IMG_SIZE = 512
 
-train = read_sort(DATA_PATH)
+#train = read_sort(DATA_PATH)
 train, test, train_path, test_path = read(DATA_PATH)
 
 imagedataset = Dataloader(train_path[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
