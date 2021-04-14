@@ -8,17 +8,18 @@ from sklearn.preprocessing import normalize
 
 import os
 
-os.environ["CUDA_VISIBLE_deviceS"] = "5"
+os.environ["CUDA_VISIBLE_deviceS"] = "6"
 
-device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
 
 DATA_PATH = '/data/shopee_product_matching/'
 BATCH_SIZE = 100
 IMG_SIZE = 512
 
 train = read_sort(DATA_PATH)
+train, test, train_path, test_path = read(DATA_PATH)
 
-imagedataset = Dataloader(train['image'].values[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
+imagedataset = Dataloader(train_path[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
 
 imageloader = torch.utils.data.DataLoader(
     imagedataset,
@@ -32,14 +33,10 @@ with torch.no_grad():
     for i, data in enumerate(imageloader):
         data = data.to(device)
         feat = imgmodel(data)
-        
-        #feat = feat.reshape(feat.shape[0], feat.shape[1]) #这个feat多了一个维度 需要修改imgmodel库函数 现在方案是在之后squeeze
-
         imagefeat.append(feat.data.cpu().numpy())
 
 
 imagefeat = np.squeeze(imagefeat)                         # 压缩之前多的单元素维度
-
 imagefeat = normalize(imagefeat)                          # 用sklearn实现的归一化 可以用numpy改写
 
 
