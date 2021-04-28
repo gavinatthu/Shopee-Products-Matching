@@ -22,6 +22,8 @@ def read(DATA_PATH):
     test = origin[30013:]
     train_path = DATA_PATH + 'train_images/' + train['image'].values
     test_path = DATA_PATH + 'train_images/' + test['image'].values   #这种切分方法实际上并不优雅，考虑用groupby('label_group')，之后random选取一定比例的组
+    # 需要写一个交叉验证分割方法，保证每一类至少有一个点在train中，初步验证先用所有点训练
+    # 可以先在每个组中随机抽一个点，剩下的点再随机分割
     
     return train, test, train_path, test_path
 
@@ -41,7 +43,8 @@ class Dataloader():
     def __len__(self):
         return len(self.img_path)
 
-DATA_PATH = '/data/shopee_product_matching/'
+# 改为相对路径，数据在上层文件夹的shopee-product-matching中
+DATA_PATH = '..\\shopee-product-matching\\'
 BATCH_SIZE = 100
 IMG_SIZE = 512
 
