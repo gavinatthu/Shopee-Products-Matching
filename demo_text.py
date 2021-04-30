@@ -15,7 +15,7 @@ device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
 DATA_PATH = '../shopee_product_matching/'
 
 BATCH_SIZE = 50
-MAX_LENGTH = 10
+MAX_LENGTH = 5
 
 train, test, _, _ = read_1(DATA_PATH)     # 事实上这一步作用只是生成train_set.csv和test_set.csv，pd.dataframe到torchtext的接口没有写，word2vec函数还要再读一遍
 
@@ -25,8 +25,9 @@ TEXT, LABEL, train_iter, test_iter = word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH)
 test_batch = next(iter(test_iter))
 test_input, test_label = test_batch.title, test_batch.label
 
-print('test_label', test_batch.dataset.examples[0].title, test_batch.dataset.examples[0].label)
 
+
+'''
 if os.path.exists('w2v.model'):
     print(1)
     model = Word2Vec.load("w2v.model")
@@ -63,38 +64,42 @@ with torch.no_grad():
 
 print(max_sim)
 print(sentences[id_max])
-
 '''
+
 #利用torch搭建单层embedding网络测试，不work
 
 
 model = LSTM(TEXT.vocab.vectors)
+
 model.train()
 
-
 test_output = model(test_input)
-test_item = test_output[0,:]
-test_item = test_item.repeat(BATCH_SIZE,1)
-max_total = 0.0
+test_item = test_output[1,:]
+test_item = test_item.repeat(BATCH_SIZE, 1)
 
+print('test_label', test_batch.dataset.examples[1].title, test_batch.dataset.examples[1].label)
+
+max_total = -1.0
+max_list = []
 with torch.no_grad():
     for idx, batch in enumerate(train_iter):
         text, label = batch.title, batch.label
-        
         predicted = model(text)
-
         similarity = torch.cosine_similarity(test_item, predicted, dim=1)
-
+        
         max_sim = torch.max(similarity)
         
-        if max_sim > max_total:
-            print(max_sim)
+        if(max_sim > max_total):
+            id_max = similarity.argmax()
+            print(max_sim,similarity,id_max)
             max_total = max_sim
+            max_list.append(max_total)
             #id = idx*BATCH_SIZE + similarity.argmax()
-            print('target_label', batch.dataset.examples[similarity.argmax()].title, batch.dataset.examples[similarity.argmax()].label)
-'''      
+            print('target_label', batch.dataset.examples[id_max].title, batch.dataset.examples[id_max].label)
+        else:
+            pass
 
-
+    print(max_list)
 
 '''
 vocab = TEXT.vocab
