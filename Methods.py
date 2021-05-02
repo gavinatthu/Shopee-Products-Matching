@@ -3,45 +3,59 @@ import torchvision.models as models
 import torch.nn as nn
 import torch.nn.functional as F
 import torchtext
+import gensim
+import os
 
-# Convlution Network
-class Conv(nn.Module):
-    def __init__(self):
-        super(Conv, self).__init__()
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.bn1 = nn.BatchNorm2d(10)
-        self.bn2 = nn.BatchNorm2d(20)
-        self.mp = nn.MaxPool2d(2)
-        self.fc = nn.Linear(320, 10)
+# TF_IDF model
+class TF_IDF():
+    def __init__(self, train_sentences):
+        self.train_sentences = train_sentences
+        # 建立字典
+        self.dictionary = gensim.corpora.Dictionary(self.train_sentences)
+        corpus = [self.dictionary.doc2bow(item) for item in self.train_sentences]
+        # Tfidf算法 计算tf值
+        self.tf = gensim.models.TfidfModel(corpus)
+        # 通过token2id得到特征数（字典里面的键的个数）
+        num_features = len(self.dictionary.token2id.keys())
+        # 计算稀疏矩阵相似度，建立一个索引
+        self.index = gensim.similarities.MatrixSimilarity(self.tf[corpus], num_features=num_features)
 
-    def forward(self, x):
-        # in_size = 64
-        in_size = x.size(0) # one batch
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.mp(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.mp(x)
-        x = F.relu(x)
-        # x: 64*320
-        x = x.view(in_size, -1) # flatten the tensor
-        # x: 64*10
-        x = self.fc(x)
-        return x
 
-#
-'''
-class KNN(nn.Module):
+    def Sim_list(self, test_words):  #返回输入test_sentence与全部train_sentences(List)的相似度列表
+        new_vec = self.dictionary.doc2bow(test_words)
+        # 根据索引矩阵计算相似度
+        sims = self.index[self.tf[new_vec]]
+        return sims
 
-class SIFT(nn.Module):
-'''
+
+# Fasttext model
+class Fast_Text():
+    def __init__(self, train_sentences, MODEL_PATH):
+        self.train_sentences = train_sentences
+        if os.path.exists(MODEL_PATH):
+            print('Loading model...')
+            self.model = gensim.models.FastText.load(MODEL_PATH)
+        else:
+            print('Generating model...')
+            self.model = gensim.models.fasttext.load_facebook_model(gensim.test.utils.datapath('/home/common/ljw/shopee/crawl-300d-2M-subword.bin')) #这里需要用绝对路径
+            #model = gensim.models.FastText(sentences, vector_size=100, window=20, min_count=0)         #这个是只用本地title训练的FastText
+            #model = gensim.models.Word2Vec(sentences, vector_size=100, window=20, min_count=0)         #这个是只用本地title训练的word2vec
+            self.model.build_vocab(train_sentences, update=True)
+            self.model.train(train_sentences, total_examples=len(train_sentences), epochs=model.epochs)
+            self.model.save(MODEL_PATH)
+    
+    def Sim_list(self, test_words):
+        self.sim_total = []
+        # 这一步循环非常慢 事实上已经构建了trainsentences的list，可以直接计算sentence和list of sentence的余弦距离
+        for i in range(len(self.train_sentences)):
+            sim = self.model.wv.n_similarity(test_words,self.train_sentences[i])
+            self.sim_total.append(sim)
+        return self.sim_total
+
 
 # word2vec with Glove6B,300d
 def word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH):
-    TEXT = torchtext.legacy.data.Field(fix_length=MAX_LENGTH)                      #划定句子的最大长度为MAX_LENGTH
+    TEXT = torchtext.legacy.data.Field(fix_length=MAX_LENGTH, lower=True)        #划定句子的最大长度为MAX_LENGTH， 小写化！！！！
     LABEL = torchtext.legacy.data.Field(sequential=False,dtype=torch.long)
     fields = [(None, None), (None, None), (None, None), ('title', TEXT), ('label', LABEL)]
     
@@ -56,17 +70,11 @@ def word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH):
     #TEXT.build_vocab(train, vectors=GloVe(name='6B', dim=300))             #能连接外网的情况下，可以在线获取预训练Glove
 
     # build the Batch Iterator
+    # 现在考虑不需要迭代器
     train_iter, test_iter = torchtext.legacy.data.BucketIterator.splits(
-        (train, test), batch_size=BATCH_SIZE, sort_key=lambda x:MAX_LENGTH, 
-        sort_within_batch=True, shuffle=False, repeat=False)
+        (train, test), batch_size=BATCH_SIZE, sort_key=None, shuffle=False, repeat=False)
 
-    #print(TEXT.vocab.vectors)
-    #print('TEXT.vocab.vectors.size()', TEXT.vocab.vectors.size())
-    #print('Label of 0#', train_iter.dataset.examples[0].label)
-    #print('Title of 0#', train_iter.dataset.examples[0].title)
-    #print(TEXT.vocab.stoi[train_iter.dataset.examples[0].title[0]])
-    #print('Title of 0#', TEXT.vocab.vectors[TEXT.vocab.stoi['bag']])
-    return TEXT, LABEL, train_iter, test_iter
+    return TEXT, LABEL, train, test
 
 def id2vec(pretrained_emb, input):
     input_dim, embedding_dim = pretrained_emb.size()
@@ -76,33 +84,35 @@ def id2vec(pretrained_emb, input):
     return output
 
 
-class RNN(nn.Module):
+def sen2list(train, test):
+    sentences, train_sentences, train_label, test_sentences, test_label = [], [], [], [], []
+    with torch.no_grad():
+        for i in range(len(train)):
+            sentences.append(train[i].title)
+            train_sentences.append(train[i].title)
+            train_label.append(train[i].label)
+        for i in range(len(test)):
+            sentences.append(test[i].title)
+            test_sentences.append(test[i].title)
+            test_label.append(test[i].label)
+    return sentences, train_sentences, train_label, test_sentences, test_label
+
+
+
+
+class W2V(nn.Module):
     def __init__(self, pretrained_emb):
-        super().__init__()
-        #self.bn = nn.BatchNorm1d()
-        input_dim, embedding_dim = pretrained_emb.size()
-        self.embedding = nn.Embedding(input_dim, embedding_dim)
-        self.embedding.weight = nn.Parameter(pretrained_emb)
-        self.embedding.weight.data.copy_(pretrained_emb)
-
-    def forward(self, input):
-        #x = self.bn(input)
-        x = self.embedding(input)
-        return x
-
-
-class LSTM(nn.Module):
-    def __init__(self, pretrained_emb):
-        super(LSTM, self).__init__()
+        super(W2V, self).__init__()
         input_dim, embedding_dim = pretrained_emb.size()
         self.word_embeddings = nn.Embedding(input_dim, embedding_dim)
-
 
     def forward(self, sentence):
         x = self.word_embeddings(sentence)
         x = torch.mean(x, dim=0)
-
         return x
+
+
+
 
 # pretrain models
 class ShopeeImageEmbeddingNet(nn.Module):
