@@ -3,10 +3,10 @@ import numpy as np
 from data_loader import *
 from Methods import *
 import os
-
+import time
 import gensim
-#from gensim.models import Word2Vec, KeyedVectors
-from gensim.scripts.glove2word2vec import glove2word2vec
+
+print(time.time())
 
 os.environ["CUDA_VISIBLE_deviceS"] = "7"
 device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
@@ -15,51 +15,65 @@ device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
 DATA_PATH = '../shopee_product_matching/'
 
 BATCH_SIZE = 50
-MAX_LENGTH = 5
+MAX_LENGTH = 24
 
-train, test, _, _ = read_1(DATA_PATH)     # 事实上这一步作用只是生成train_set.csv和test_set.csv，pd.dataframe到torchtext的接口没有写，word2vec函数还要再读一遍
+if os.path.exists(DATA_PATH + 'train_set.csv'):
+    print('Dataset exists!')
+else:
+    _, _, _, _ = read_1(DATA_PATH)     # 事实上这一步作用只是生成train_set.csv和test_set.csv，pd.dataframe到torchtext的接口没有写，word2vec函数还要再读一遍
 
 TEXT, LABEL, train, test = word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH)
-
-sentences, train_sentences, train_label, test_sentences, test_label = [], [], [], [], []
-with torch.no_grad():
-    for i in range(len(train)):
-        sentences.append(train[i].title)
-        train_sentences.append(train[i].title)
-        train_label.append(train[i].label)
-    for i in range(len(test)):
-        sentences.append(test[i].title)
-        test_sentences.append(test[i].title)
-        test_label.append(test[i].label)
-
-dictionary = gensim.corpora.Dictionary(sentences)
-
-corpus = [dictionary.doc2bow(item) for item in sentences]
+sentences, train_sentences, train_label, test_sentences, test_label = sen2list(train, test)
 
 
-# 4.通过TF模型算法，计算出tf值
+# 建立字典
+dictionary = gensim.corpora.Dictionary(train_sentences)
+
+# 分词corpus
+corpus = [dictionary.doc2bow(item) for item in train_sentences]
+
+# Tfidf算法 计算tf值
 tf = gensim.models.TfidfModel(corpus)
-# 5.通过token2id得到特征数（字典里面的键的个数）
+
+# 通过token2id得到特征数（字典里面的键的个数）
 num_features = len(dictionary.token2id.keys())
-# 6.计算稀疏矩阵相似度，建立一个索引
+
+# 计算稀疏矩阵相似度，建立一个索引
 index = gensim.similarities.MatrixSimilarity(tf[corpus], num_features=num_features)
 
-# 7.处理测试数据
-test_words = test_sentences[0]
 
-print(test_words, test_label[0])
 
-# 8.新的稀疏向量
-new_vec = dictionary.doc2bow(test_words)
-# 9.算出相似度
-sims = index[tf[new_vec]]
-sim_total = np.array(sims)
-sim_total = np.array(sim_total)
-sim_index = np.argsort(-sim_total)
 
-print(sim_total[sim_index][:10])
-print(sim_index[:10])
+top20_acc, top5_acc, top1_acc = 0, 0, 0
+start = time.time()
+for k in range(len(test_sentences)):
 
-print(train_sentences[sim_index[1]], train_label[sim_index[1]])
-print(train_sentences[sim_index[2]], train_label[sim_index[2]])
-print(train_sentences[sim_index[3]], train_label[sim_index[3]])
+    test_words, target = test_sentences[k], test_label[k]
+    #print(test_words, label1)
+    
+    new_vec = dictionary.doc2bow(test_words)
+
+    sim_total = index[tf[new_vec]]
+    sim_total = np.array(sim_total)
+
+    sim_index = np.argsort(-sim_total)
+
+    if (target in [train_label[i] for i in sim_index[:1]]): 
+        print('Success top1! Label=', target)
+        top1_acc += 1
+        top5_acc += 1
+        top20_acc += 1
+    elif (target in [train_label[i] for i in sim_index[:5]]): 
+        print('Success top5! Label=', target)
+        top5_acc += 1
+        top20_acc += 1
+    elif (target in [train_label[i] for i in sim_index[:20]]): 
+        print('Success top10! Label=', target)
+        top20_acc += 1
+    else:
+        print('Fault Label=', target)
+
+print('acc1=', top1_acc)
+print('acc5=', top5_acc)
+print('acc10=', top20_acc)
+print('time=', time.time() - start)
