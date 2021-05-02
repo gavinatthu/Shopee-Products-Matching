@@ -20,7 +20,7 @@ Numpy 1.19.5
 
 ### 实验记录  
 文本:  
-Methods|Top1|Top5|Top20
+Methods|Top1|Top5|Top20|Time
 ---|:--:|:--:|:--:|---:
 Tf-idf|67.0%|83.7%|91.3%|329.5
 Fasttext|-|-|-|-
