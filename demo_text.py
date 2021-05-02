@@ -31,63 +31,45 @@ sentences, train_sentences, train_label, test_sentences, test_label = sen2list(t
 
 MODEL_PATH = '/data1/shopee/shopee.model'                  # Modelpath需要足够大的空间存储，服务器分盘下需要放到data盘里（8Gb左右）
 
-
-if os.path.exists(MODEL_PATH):
-    print('Loading model...')
-    model = gensim.models.FastText.load(MODEL_PATH)
-
-else:
-    print('Generating model...')
-    model = gensim.models.fasttext.load_facebook_model(gensim.test.utils.datapath('/home/common/ljw/shopee/crawl-300d-2M-subword.bin')) #这里需要用绝对路径
-    model.save(MODEL_PATH)
-    #model = gensim.models.FastText(sentences, vector_size=100, window=20, min_count=0)         #这个是只用本地title训练的FastText
-    #model = gensim.models.Word2Vec(sentences, vector_size=100, window=20, min_count=0)         #这个是只用本地title训练的word2vec
-    model.build_vocab(train_sentences, update=True)
-    model.train(train_sentences, total_examples=len(train_sentences), epochs=model.epochs)
-
-
-print(model)
+# TF_IDF_model = TF_IDF(train_sentences)
+Fast_Text_model = Fast_Text(train_sentences, MODEL_PATH)
+print(Fast_Text_model.model)
 
 
 start = time.time()
 k = 0
 top20_acc, top5_acc, top1_acc = 0, 0, 0
 for k in range(len(test_sentences)):
-    sen1, label1 = test_sentences[k], test_label[k]
-    print(sen1, label1)
+    test_words, target= test_sentences[k], test_label[k]
+    #print(sen1, label1)
 
-    sim_total = []
 
-    # 这一步循环非常慢 事实上已经构建了trainsentences的list，可以直接计算sentence和list of sentence的余弦距离
-    for i in range(len(train_sentences)):
-        sim = model.wv.n_similarity(sen1,train_sentences[i])
-        sim_total.append(sim)
+    #sim_total = TF_IDF_model.Sim_list(test_words)
+    sim_total = Fast_Text_model.Sim_list(test_words)
 
     sim_total = np.array(sim_total)
     sim_index = np.argsort(-sim_total)
 
-    if (test_label[k] in [train_label[i] for i in sim_index[:1]]): 
-        print('Success top1! Label=', test_label[k])
+    if (target in [train_label[i] for i in sim_index[:1]]): 
+        print('Success top1! Label=', target)
         top1_acc += 1
         top5_acc += 1
         top20_acc += 1
-    elif (test_label[k] in [train_label[i] for i in sim_index[:5]]): 
-        print('Success top5! Label=', test_label[k])
+    elif (target in [train_label[i] for i in sim_index[:5]]): 
+        print('Success top5! Label=', target)
         top5_acc += 1
         top20_acc += 1
-    elif (test_label[k] in [train_label[i] for i in sim_index[:20]]): 
-        print('Success top20! Label=', test_label[k])
+    elif (target in [train_label[i] for i in sim_index[:20]]): 
+        print('Success top20! Label=', target)
         top20_acc += 1
     else:
-        print('Fault Label=', test_label[k])
+        print('Fault Label=', target)
 
 
 print('acc1=', top1_acc)
 print('acc5=', top5_acc)
 print('acc20=', top20_acc)
 print('time=', time.time() - start)
-
-
 
 '''
 # 利用迭代器的方案
