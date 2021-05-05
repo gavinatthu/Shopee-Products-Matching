@@ -15,14 +15,17 @@ Python 3.8.8
 Pytorch 1.8.1  
 CUDA 11.1  
 Torchvision 0.9.1  
+Torchtext 
 Pandas 1.2.3  
 Pillow 8.1.2  
 Numpy 1.19.5  
 
 ### 方法  
-conda activate ljw_py38  
-cd ljw/shopee  
-python demo_text.py  
+```bash
+$ conda activate ljw_py38  
+$ cd ljw/shopee  
+$ python demo_text.py
+```
 
 ### 实验记录  
 文本:  
