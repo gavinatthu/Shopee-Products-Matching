@@ -8,6 +8,7 @@ test.py 一个利用预训练的Resnet50提取图片特征的demo
 
 ### TODO  
 搭建一个Methods.py文件 把不同种特征提取方案(KNN, SIFT, CNN等)封装在各自的库中，统一接口  
+图片特征提取的pipeline  
   
 ### 系统环境  
 Python 3.8.8  
@@ -17,6 +18,11 @@ Torchvision 0.9.1
 Pandas 1.2.3  
 Pillow 8.1.2  
 Numpy 1.19.5  
+
+### 方法  
+conda activate ljw_py38  
+cd ljw/shopee  
+python demo_text.py  
 
 ### 实验记录  
 文本:  
