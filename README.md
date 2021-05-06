@@ -29,14 +29,14 @@ $ python demo_text.py
 
 ### 实验记录  
 文本:  
-Methods|Top1|Top5|Top20|Time
+Methods|Top1|Top5|Top20|Time(s)
 ---|:--:|:--:|:--:|---:
 Tf-idf|67.0%|83.7%|91.3%|329.5
 Fasttext|45.5%|55.7%|63.2%|16415.9
 
 ---
 图片:  
-Methods|Top1|Top5|Top20|Time
+Methods|Top1|Top5|Top20|Time(s)
 ---|:--:|:--:|:--:|---:
-ResNet50|-|-|-|-
+ResNet50|68.4%|77.7%|83.3%|353.2
 SIFT|-|-|-|-
