@@ -7,8 +7,10 @@ p_hash.py 生成图片的感知哈希值，并与原始数据比较
 test.py 一个利用预训练的Resnet50提取图片特征的demo  
 
 ### TODO  
-搭建一个Methods.py文件 把不同种特征提取方案(KNN, SIFT, CNN等)封装在各自的库中，统一接口  
-图片特征提取的pipeline  
+~~搭建一个Methods.py文件 把不同种特征提取方案(KNN, SIFT, CNN等)封装在各自的库中，统一接口~~  
+~~图片特征提取的pipeline~~  
+phash算法  
+将不同特征矩阵ensemble 进行聚类  
   
 ### 系统环境  
 Python 3.8.8  
