@@ -1,3 +1,5 @@
+
+import numpy as np
 import torch
 import torchvision.models as models
 import torch.nn as nn
@@ -5,7 +7,9 @@ import torch.nn.functional as F
 import torchtext
 import gensim
 import os
-
+from torch.nn import TransformerEncoder, TransformerEncoderLayer # 实现TransformerEncoder用
+from efficientnet_pytorch import EfficientNet
+#import timm
 # TF_IDF model
 class TF_IDF():
     def __init__(self, train_sentences):
@@ -15,17 +19,32 @@ class TF_IDF():
         corpus = [self.dictionary.doc2bow(item) for item in self.train_sentences]
         # Tfidf算法 计算tf值
         self.tf = gensim.models.TfidfModel(corpus)
+
+        # 采用LSI算法将TFidf降维到所需维度的特征空间
+        self.lsi = gensim.models.LsiModel(corpus, id2word=self.dictionary, num_topics=300)
+
         # 通过token2id得到特征数（字典里面的键的个数）
         num_features = len(self.dictionary.token2id.keys())
         # 计算稀疏矩阵相似度，建立一个索引
         self.index = gensim.similarities.MatrixSimilarity(self.tf[corpus], num_features=num_features)
 
 
-    def Sim_list(self, test_words):  #返回输入test_sentence与全部train_sentences(List)的相似度列表
+    def Feat_ext(self, test_words):  #返回输入test_sentence与全部train_sentences(List)的相似度列表
         new_vec = self.dictionary.doc2bow(test_words)
-        # 根据索引矩阵计算相似度
-        sims = self.index[self.tf[new_vec]]
-        return sims
+        vec_tf = self.tf[new_vec]
+       
+        # 利用lsi算法降维tfidf的特征 
+        feat = self.lsi[vec_tf]  #turple list[(0, XXX), (1,XXX)...(299, XXX)]
+        feat = [item[1] for item in feat]
+        feat = np.array(feat)
+        # 某些很短的句子lsi方法会产生<300的向量，暂时的解决方法通过padding实现补齐
+        if len(feat)!=300:
+            feat = np.pad(feat, (0, 300-len(feat)), 'constant', constant_values = 0)
+
+        # 根据索引矩阵计算相似度 
+        #sims = self.index[vec_tf]
+        #return feat, sims
+        return feat
 
 
 # Fasttext model
@@ -44,13 +63,23 @@ class Fast_Text():
             self.model.train(train_sentences, total_examples=len(train_sentences), epochs=model.epochs)
             self.model.save(MODEL_PATH)
     
-    def Sim_list(self, test_words):
+    def Feat_ext(self, test_words):
         self.sim_total = []
+        feat = None
+        for words in test_words:
+            if feat is not None:
+                feat = feat + self.model.wv[words]
+            else:
+                feat = self.model.wv[words]
+        feat = feat / len(test_words)
+        '''
         # 这一步循环非常慢 事实上已经构建了trainsentences的list，可以直接计算sentence和list of sentence的余弦距离
         for i in range(len(self.train_sentences)):
             sim = self.model.wv.n_similarity(test_words,self.train_sentences[i])
             self.sim_total.append(sim)
-        return self.sim_total
+        return feat, self.sim_total
+        '''
+        return feat
 
 
 # word2vec with Glove6B,300d
@@ -114,20 +143,148 @@ class W2V(nn.Module):
 
 
 
+
+
+
+
 # pretrain models
 class ShopeeImageEmbeddingNet(nn.Module):
     def __init__(self):
         super(ShopeeImageEmbeddingNet, self).__init__()
-              
-        model = models.resnet50(True)
-        model.avgpool = nn.AdaptiveMaxPool2d(output_size=(1, 1))
-        model = nn.Sequential(*list(model.children())[:-1])
+
+
+        #model = timm.create_model('vit_base_patch16_224_in21k', pretrained=True)
+        model = EfficientNet.from_pretrained('efficientnet-b5')
+        print(model)
+        #model = models.resnet50(True)
+        #model.avgpool = nn.AdaptiveMaxPool2d(output_size=(1, 1))
+        #model = nn.Sequential(*list(model.children())[:-1])
         model.eval()
+        model._fc = model._fc = nn.Linear(in_features=2048, out_features=300, bias=True) # 这里将输出特征改为300 方便之后和文本组合
         self.model = model
-        
+        self.con1 = nn.Conv1d(1, 1, kernel_size=5,stride=7,padding=25)
+
     def forward(self, img):        
         out = self.model(img)
-        return out
+        out = torch.squeeze(out)
+        out = F.normalize(out, dim=1)
+        #out = torch.unsqueeze(out, dim=1)
+        #out = self.con1(out)
+        #out = torch.squeeze(out)
+        return out # Batchsize*2048
+
+# 简单NN处理图片
+# TODO: CNN处理图片
+# wwt 5.5
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, 65)
+        self.pool = nn.MaxPool2d(4, 4)
+        self.conv2 = nn.Conv2d(6, 16, 33)
+        self.fc1 = nn.Linear(16 * 20 * 20, 1920)
+        self.fc2 = nn.Linear(1920, 1344)
+        self.fc3 = nn.Linear(1344, 11014)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+def trainLoop(dataloader, model, loss_fn, optimizer, device):
+    size = len(dataloader.dataset)
+    for batch, (X, y) in enumerate(dataloader):
+        X, y = X.to(device), y.to(device)
+
+        # Compute prediction error
+        model.train()
+        pred = model(X)
+        loss = loss_fn(pred, torch.max(y, 1)[1]) # CrossEntropyLoss()不支持onehot，只支持表示类别的数
+
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 1 == 0:
+            loss, current = loss.item(), batch * len(X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+
+def testLoop(dataloader, model, loss_fn, device):
+    size = len(dataloader.dataset)
+    model.eval()
+    test_loss, correct = 0, 0
+    with torch.no_grad():
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            pred = model(X)
+            test_loss += loss_fn(pred, torch.max(y, 1)[1]).item()
+            correct += (pred.argmax(1) == torch.max(y, 1)[1]).type(torch.float).sum().item()
+    test_loss /= size
+    correct /= size
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+
+# # TODO:派生一个耦合文本（attention）和图像（cnn）的网络
+# # wwt 5.5
+# class embeddedNet(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         self.conv1 = nn.Conv2d(3, 6, 5)
+#         self.pool = nn.MaxPool2d(2, 2)
+#         self.conv2 = nn.Conv2d(6, 16, 5)
+#         self.fc1 = nn.Linear(16 * 5 * 5, 120)
+#         self.fc2 = nn.Linear(120, 84)
+#         self.fc3 = nn.Linear(84, 10)
+
+#     def forward(self, x):
+#         x = self.pool(F.relu(self.conv1(x)))
+#         x = self.pool(F.relu(self.conv2(x)))
+#         x = x.view(-1, 16 * 5 * 5)
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         x = self.fc3(x)
+#         return x    
+
+# class AttnDecoderRNN(nn.Module):
+#     def __init__(self, hidden_size, output_size, dropout_p=0.1, max_length=MAX_LENGTH):
+#         super(AttnDecoderRNN, self).__init__()
+#         self.hidden_size = hidden_size
+#         self.output_size = output_size
+#         self.dropout_p = dropout_p
+#         self.max_length = max_length
+
+#         self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+#         self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
+#         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+#         self.dropout = nn.Dropout(self.dropout_p)
+#         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+#         self.out = nn.Linear(self.hidden_size, self.output_size)
+
+#     def forward(self, input, hidden, encoder_outputs):
+#         embedded = self.embedding(input).view(1, 1, -1)
+#         embedded = self.dropout(embedded)
+
+#         attn_weights = F.softmax(
+#             self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
+#         attn_applied = torch.bmm(attn_weights.unsqueeze(0),
+#                                  encoder_outputs.unsqueeze(0))
+
+#         output = torch.cat((embedded[0], attn_applied[0]), 1)
+#         output = self.attn_combine(output).unsqueeze(0)
+
+#         output = F.relu(output)
+#         output, hidden = self.gru(output, hidden)
+
+#         output = F.log_softmax(self.out(output[0]), dim=1)
+#         return output, hidden, attn_weights
+
+#     def initHidden(self):
+#         return torch.zeros(1, 1, self.hidden_size, device=device)
+
 
 '''
 class SIFT():
