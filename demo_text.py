@@ -1,14 +1,15 @@
 import torch
 import numpy as np
 from data_loader import *
-from Methods import *
+from Methods import*
+from evaluate import calAccuracy, conv2Top1, calF1score
 import os
 import time
-import gensim
-from gensim.test.utils import datapath, get_tmpfile
+from tqdm import tqdm
+import sklearn
 
-os.environ["CUDA_VISIBLE_deviceS"] = "7"
-device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+device = torch.device("cuda")
 
 
 DATA_PATH = '../shopee_product_matching/'
@@ -22,54 +23,59 @@ else:
     _, _, _, _ = read_1(DATA_PATH)     # 事实上这一步作用只是生成train_set.csv和test_set.csv，pd.dataframe到torchtext的接口没有写，word2vec函数还要再读一遍
 
 # 加载分词后的语料库
-TEXT, LABEL, train, test = word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH)
-
+_, _, train, test = word2id(DATA_PATH, BATCH_SIZE, MAX_LENGTH)
 
 # 直接存list的方案
 sentences, train_sentences, train_label, test_sentences, test_label = sen2list(train, test)
 
-
 MODEL_PATH = '/data1/shopee/shopee.model'                  # Modelpath需要足够大的空间存储，服务器分盘下需要放到data盘里（8Gb左右）
 
-# TF_IDF_model = TF_IDF(train_sentences)
-Fast_Text_model = Fast_Text(train_sentences, MODEL_PATH)
-print(Fast_Text_model.model)
+
+model1 = TF_IDF(train_sentences)
+model2 = Fast_Text(train_sentences, MODEL_PATH)
 
 
 start = time.time()
-k = 0
-top20_acc, top5_acc, top1_acc = 0, 0, 0
-for k in range(len(test_sentences)):
-    test_words, target= test_sentences[k], test_label[k]
-    #print(sen1, label1)
+
+# 存储预测label的列表
+pred_label = []
+feat_total1, feat_total2 = [], []
+
+for test_words in tqdm(test_sentences):
+
+    feat1 = model1.Feat_ext(test_words)
+    feat2 = model2.Feat_ext(test_words)
+    #sims = np.array(sims)
+
+    feat_total1.append(feat1)
+    feat_total2.append(feat2)
+    # 按照后验概率从大到小排序
+    #sim_index = np.argsort(-sims)
+    #pred_label.append([train_label[i] for i in sim_index[:20]])
 
 
-    #sim_total = TF_IDF_model.Sim_list(test_words)
-    sim_total = Fast_Text_model.Sim_list(test_words)
+#feat_total1 = np.array(feat_total1)
+feat_total1 = sklearn.preprocessing.normalize(feat_total1, axis=1)
+feat_total2 = sklearn.preprocessing.normalize(feat_total2, axis=1)
 
-    sim_total = np.array(sim_total)
-    sim_index = np.argsort(-sim_total)
+print(feat_total1.shape, feat_total2.shape)
+'''
+feat_total = np.array(feat_total)[:,:,1]
 
-    if (target in [train_label[i] for i in sim_index[:1]]): 
-        print('Success top1! Label=', target)
-        top1_acc += 1
-        top5_acc += 1
-        top20_acc += 1
-    elif (target in [train_label[i] for i in sim_index[:5]]): 
-        print('Success top5! Label=', target)
-        top5_acc += 1
-        top20_acc += 1
-    elif (target in [train_label[i] for i in sim_index[:20]]): 
-        print('Success top20! Label=', target)
-        top20_acc += 1
-    else:
-        print('Fault Label=', target)
+pred_label = np.array(pred_label)
 
 
+top1_acc = calAccuracy(test_label, pred_label, topN=1)
+top5_acc = calAccuracy(test_label, pred_label, topN=5)
+top20_acc = calAccuracy(test_label, pred_label, topN=20)
+f1score = calF1score(test_label, pred_label[:20], topN=1, average='micro')
+
+print('acc1=', f1score)
 print('acc1=', top1_acc)
 print('acc5=', top5_acc)
 print('acc20=', top20_acc)
 print('time=', time.time() - start)
+'''
 
 '''
 # 利用迭代器的方案
