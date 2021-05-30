@@ -43,7 +43,8 @@ for test_path_tmp in tqdm(test_path):
         feat = np.pad(feat,((300-len(feat),0),(0,0)),'constant', constant_values=0)
     '''
     test_feat.append(feat[:300])
-    
+
+   
 
 train_feat = np.array(train_feat) # 特征矩阵： (31250, 300, 32)
 np.save("./logs/train_feat.npy",train_feat)
