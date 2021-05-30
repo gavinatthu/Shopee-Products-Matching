@@ -148,7 +148,7 @@ class W2V(nn.Module):
 
 
 # pretrain models
-class ShopeeImageEmbeddingNet(nn.Module):
+class P_Efnetb5(nn.Module):
     def __init__(self):
         super(ShopeeImageEmbeddingNet, self).__init__()
 
@@ -173,9 +173,29 @@ class ShopeeImageEmbeddingNet(nn.Module):
         #out = torch.squeeze(out)
         return out # Batchsize*2048
 
-# 简单NN处理图片
-# TODO: CNN处理图片
-# wwt 5.5
+# pretrain models
+class P_Resnetb5(nn.Module):
+    def __init__(self):
+        super(ShopeeImageEmbeddingNet, self).__init__()
+
+
+        model = models.resnet50(True)
+        model.eval()
+        model._fc = model._fc = nn.Linear(in_features=2048, out_features=300, bias=True) # 这里将输出特征改为300 方便之后和文本组合
+        self.model = model
+        self.con1 = nn.Conv1d(1, 1, kernel_size=5,stride=7,padding=25)
+
+    def forward(self, img):        
+        out = self.model(img)
+        out = torch.squeeze(out)
+        out = F.normalize(out, dim=1)
+        #out = torch.unsqueeze(out, dim=1)
+        #out = self.con1(out)
+        #out = torch.squeeze(out)
+        return out # Batchsize*2048
+
+
+# 简单CNN处理图片
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__()
@@ -228,69 +248,80 @@ def testLoop(dataloader, model, loss_fn, device):
     correct /= size
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
-# # TODO:派生一个耦合文本（attention）和图像（cnn）的网络
-# # wwt 5.5
-# class embeddedNet(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.conv1 = nn.Conv2d(3, 6, 5)
-#         self.pool = nn.MaxPool2d(2, 2)
-#         self.conv2 = nn.Conv2d(6, 16, 5)
-#         self.fc1 = nn.Linear(16 * 5 * 5, 120)
-#         self.fc2 = nn.Linear(120, 84)
-#         self.fc3 = nn.Linear(84, 10)
-
-#     def forward(self, x):
-#         x = self.pool(F.relu(self.conv1(x)))
-#         x = self.pool(F.relu(self.conv2(x)))
-#         x = x.view(-1, 16 * 5 * 5)
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#         x = self.fc3(x)
-#         return x    
-
-# class AttnDecoderRNN(nn.Module):
-#     def __init__(self, hidden_size, output_size, dropout_p=0.1, max_length=MAX_LENGTH):
-#         super(AttnDecoderRNN, self).__init__()
-#         self.hidden_size = hidden_size
-#         self.output_size = output_size
-#         self.dropout_p = dropout_p
-#         self.max_length = max_length
-
-#         self.embedding = nn.Embedding(self.output_size, self.hidden_size)
-#         self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
-#         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-#         self.dropout = nn.Dropout(self.dropout_p)
-#         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
-#         self.out = nn.Linear(self.hidden_size, self.output_size)
-
-#     def forward(self, input, hidden, encoder_outputs):
-#         embedded = self.embedding(input).view(1, 1, -1)
-#         embedded = self.dropout(embedded)
-
-#         attn_weights = F.softmax(
-#             self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
-#         attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-#                                  encoder_outputs.unsqueeze(0))
-
-#         output = torch.cat((embedded[0], attn_applied[0]), 1)
-#         output = self.attn_combine(output).unsqueeze(0)
-
-#         output = F.relu(output)
-#         output, hidden = self.gru(output, hidden)
-
-#         output = F.log_softmax(self.out(output[0]), dim=1)
-#         return output, hidden, attn_weights
-
-#     def initHidden(self):
-#         return torch.zeros(1, 1, self.hidden_size, device=device)
-
-
-'''
-class SIFT():
+# 耦合图像和文本的网络
+class embeddingNetwork(nn.Module):
     def __init__(self):
-        super(SIFT, self).__init__()
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, 33)
+        self.pool = nn.MaxPool2d(4, 4)
+        self.conv2 = nn.Conv2d(6, 16, 17)
+        self.fc1 = nn.Linear(16 * 10 * 10, 800)
+        self.fc2 = nn.Linear(800, 600)
+        self.tfc = nn.Linear(300, 600)
+        self.fc3 = nn.Linear(600, 11014)
 
-        
-    def forward(self, img):
-'''
+    def forward(self, text, img):
+        text = F.relu(self.tfc(text))
+        img = self.pool(F.relu(self.conv1(img)))
+        img = self.pool(F.relu(self.conv2(img)))
+        img = torch.flatten(img, 1)
+        img = F.relu(self.fc1(img))
+        img = F.relu(self.fc2(img))
+        x = torch.add(img, text)
+        x = self.fc3(x)
+        return x
+
+class embeddingNetwork2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, 33)
+        self.pool = nn.MaxPool2d(4, 4)
+        self.conv2 = nn.Conv2d(6, 16, 17)
+        self.fc1 = nn.Linear(16 * 10 * 10, 800)
+        self.fc2 = nn.Linear(800, 600)
+        self.tfc = nn.Linear(300, 600)
+        self.fc3 = nn.Linear(600, 11014)
+
+    def forward(self, text, img):
+        text = F.relu(self.tfc(text))
+        img = self.pool(F.relu(self.conv1(img)))
+        img = self.pool(F.relu(self.conv2(img)))
+        img = torch.flatten(img, 1)
+        img = F.relu(self.fc1(img))
+        img = F.relu(self.fc2(img))
+        x = torch.add(img, text)
+        x = F.relu(self.fc3(x))
+        return x
+
+def trainLoopti(dataloader, model, loss_fn, optimizer, device):
+    size = len(dataloader.dataset)
+    for batch, (text, img, y) in enumerate(dataloader):
+        text, img, y = text.to(device), img.to(device), y.to(device)
+
+        # Compute prediction error
+        model.train()
+        pred = model(text.float(), img)
+        loss = loss_fn(pred, torch.max(y, 1)[1]) # CrossEntropyLoss()不支持onehot，只支持表示类别的数
+
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 1 == 0:
+            loss, current = loss.item(), batch * len(img)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+
+def testLoopti(dataloader, model, loss_fn, device):
+    size = len(dataloader.dataset)
+    model.eval()
+    test_loss, correct = 0, 0
+    with torch.no_grad():
+        for text, img, y in dataloader:
+            text, img, y = text.to(device), img.to(device), y.to(device)
+            pred = model(text.float(), img)
+            test_loss += loss_fn(pred, torch.max(y, 1)[1]).item()
+            correct += (pred.argmax(1) == torch.max(y, 1)[1]).type(torch.float).sum().item()
+    test_loss /= size
+    correct /= size
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
