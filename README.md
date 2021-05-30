@@ -16,26 +16,23 @@ phash算法
 首先需要新建conda虚拟环境  
 ```bash
 conda create -n shopee_matching python=3.9  
+conda activate shopee_matching   
 conda install pytorch torchvision torchtext cudatoolkit=11.1  
 ```
 安装关键依赖项：  
 ```bash
-pip install gensium Pandas tqdm opencv-python 
+pip install gensium Pandas tqdm opencv-python  
 ```
 
 ### 方法  
 1 图片特征处理  
 ```bash
-$ conda activate ljw_py38  
-$ cd ljw/shopee  
-$ python demo_text.py
+python demo_img.py
 ```
 
 2 文本特征处理  
 ```bash
-$ conda activate ljw_py38  
-$ cd ljw/shopee  
-$ python demo_text.py
+python demo_text.py
 ```
 
 ### 实验记录  
