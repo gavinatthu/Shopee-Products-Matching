@@ -5,33 +5,43 @@ import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
 
-def read_sort(DATA_PATH):
-    train = pd.read_csv(DATA_PATH + 'train.csv')
-    train['image'] = DATA_PATH + 'train_images/' + train['image']
-    tmp = train.groupby('label_group').posting_id.agg('unique').to_dict()
-    train['target'] = train.label_group.map(tmp)
-    train = train.sort_values(by='label_group')
-    return train
-# 这里参考https://www.kaggle.com/finlay/shopee-products-matching-image-part-english 需要改写
+def buildLabelMAP(DATA_PATH):
+    """Build a Look-up-table between labels and their indices
 
+    Map the labels to index (range(0, len(labels)))
 
-# 改写后的read函数
-def read(DATA_PATH):
+    Args: 
+        DATA_PATH: data path
+
+    Returns:
+        labelMAP: pd Dataframe
+        Call labelMAP.iloc[index] to get the label
+        Call labelMAP.index[pd.Index(labelMAP).get_loc(label)]  to get the index
+    """
     origin = pd.read_csv(DATA_PATH + 'train.csv')
-    origin = origin.sort_values(by='label_group')
-    #print('Items count:', len(origin))
-    #print('Classes count:', len(origin['label_group'].value_counts()))  # 总共有11014个类
-    train = origin[:30013]   #为了使最后一类完整留在train中向后移位
-    test = origin[30013:]
-    train_path = DATA_PATH + 'train_images/' + train['image'].values
-    test_path = DATA_PATH + 'train_images/' + test['image'].values   #这种切分方法实际上并不优雅，考虑用groupby('label_group')，之后random选取一定比例的组
-    # 需要写一个交叉验证分割方法，保证每一类至少有一个点在train中，初步验证先用所有点训练
-    # 可以先在每个组中随机抽一个点，剩下的点再随机分割
+    labelMAP = origin.drop_duplicates(subset=['label_group'],keep='first').iloc[:, 4].reset_index(drop=True)
+    return labelMAP
 
-    return train, test, train_path, test_path
+def label2SN(labelMAP, label):
+    return labelMAP.index[pd.Index(labelMAP).get_loc(label)]
+
+def SN2label(labelMAP, index):
+    return labelMAP.iloc[index]
+
+
+def read_only(DATA_PATH):
+    train = pd.read_csv(DATA_PATH + 'train_set.csv')
+    train_path = DATA_PATH + 'train_images/' + train['image'].values
+    train_label = train['label_group'].values
+    test = pd.read_csv(DATA_PATH + 'test_set.csv')
+    test_path = DATA_PATH + 'train_images/' + test['image'].values
+    test_label = test['label_group'].values
+    return train_path, test_path, train_label, test_label
+
 
 
 def read_1(DATA_PATH):
+    labelMAP = buildLabelMAP(DATA_PATH)
     origin = pd.read_csv(DATA_PATH + 'train.csv')
     #origin = origin.sort_values(by='label_group')
     print('Len of original set:', len(origin))                               # 总共有34250个样本
@@ -48,7 +58,10 @@ def read_1(DATA_PATH):
     test_path = DATA_PATH + 'train_images/' + test['image'].values
     train.to_csv(DATA_PATH + 'train_set.csv', index=False)
     test.to_csv(DATA_PATH + 'test_set.csv', index=False)
-    return train, test, train_path, test_path
+    return train, test, train_path, test_path, labelMAP
+
+
+
 
 def read_2(DATA_PATH):
     origin = pd.read_csv(DATA_PATH + 'train.csv')    
@@ -69,11 +82,10 @@ def read_2(DATA_PATH):
 
 
 
-
-
 class Dataloader():
-    def __init__(self, PATH, height, width):
+    def __init__(self, dataSet, PATH, height, width):
         self.img_path = PATH
+        self.dataSet = dataSet
         self.transform = transforms.Compose([
             transforms.Resize((height, width)),
             transforms.ToTensor(),
@@ -82,7 +94,54 @@ class Dataloader():
     def __getitem__(self, index):
         img = Image.open(self.img_path[index]).convert('RGB')
         img = self.transform(img)
-        return img
+        label = self.dataSet.iloc[index, 4]
+        return img, label
+    
+    def __len__(self):
+        return len(self.img_path)
+
+class Dataloader1():
+    def __init__(self, dataSet, labelMAP, PATH, height, width):
+        self.img_path = PATH
+        self.dataSet = dataSet
+        self.transform = transforms.Compose([
+            transforms.Resize((height, width)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+        self.labelMAP = labelMAP
+        self.target_transform = transforms.Lambda(lambda y: torch.zeros(11014, dtype=torch.long).scatter_(0, torch.tensor(y), value=1))
+        
+    def __getitem__(self, index):
+        img = Image.open(self.img_path[index]).convert('RGB')
+        img = self.transform(img)
+        label = self.dataSet.iloc[index, 4]
+        label = self.target_transform(label2SN(self.labelMAP, label))
+        sample = {"image": img, "label": label}
+        return img, label # 输出图像和onehot两个tensor
+
+    def __len__(self):
+        return len(self.img_path)
+
+
+class DataloaderImgText():
+    def __init__(self, textFeat, dataSet, labelMAP, PATH, height, width):
+        self.textFeat = textFeat
+        self.img_path = PATH
+        self.dataSet = dataSet
+        self.transform = transforms.Compose([
+            transforms.Resize((height, width)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+        self.labelMAP = labelMAP
+        self.target_transform = transforms.Lambda(lambda y: torch.zeros(11014, dtype=torch.long).scatter_(0, torch.tensor(y), value=1))
+        
+    def __getitem__(self, index):
+        text = self.textFeat[index]
+        img = Image.open(self.img_path[index]).convert('RGB')
+        img = self.transform(img)
+        label = self.dataSet.iloc[index, 4]
+        label = self.target_transform(label2SN(self.labelMAP, label))
+        return text, img, label # 输出图像和onehot两个tensor
     
     def __len__(self):
         return len(self.img_path)
@@ -100,3 +159,6 @@ imagedataset = Dataloader(train_path[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
 #imagedataset = Dataloader(train['image'].values[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
 imageloader = torch.utils.data.DataLoader(imagedataset, BATCH_SIZE, shuffle=False, num_workers=2)
 '''
+# DATA_PATH = '../shopee_product_matching/'
+# labelMAP = buildLabelMAP(DATA_PATH)
+# print(labelMAP.index[pd.Index(labelMAP).get_loc(249114794)])
