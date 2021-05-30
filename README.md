@@ -26,11 +26,12 @@ pip install gensium Pandas tqdm opencv-python
 
 ### 方法  
 1. 图片特征处理  
-利用Pretrained EfficientNet-v5和Pretrained ResNet50进行模型推理，使用的默认使用[0]号GPU进行计算： 
+利用在demo_img.py中根据Pretrained EfficientNet-v5和Pretrained ResNet50进行模型选择： 
 ```python
 imgmodel = P_Efnetb5().to(device)
-#imgmodel = P_Resnetb5().to(device)
+or imgmodel = P_Resnetb5().to(device)
 ```
+确定了选择的模型之后，使用的默认使用[0]号GPU进行计算：
 ```bash
 python demo_img.py
 ```
@@ -38,10 +39,22 @@ train from Scratch从头开始训练，因为训练Resnet等大型网络需要�
 ```bash
 python demo_leNet.py
 ```
-
+SIFT特征提取方法：
+```bash
+python demo_SIFT.py
+```
 2. 文本特征处理  
+运行demo_text.py可以同时输出TF_IDF和Fast_Text两种方法的实验结果：
 ```bash
 python demo_text.py
+```
+利用pretained_BERT进行测试：
+```bash
+python demo_BERT.py
+```
+train from Scratch从头开始训练，因为训练BERT等大型网络需要大量的资源，而且数据集本身过小，所以我们采用LeNet进行训练：
+```bash
+python demo_EsNet.py
 ```
 
 ### 实验记录  
