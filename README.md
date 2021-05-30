@@ -1,16 +1,10 @@
 
 ## 模式识别大作业(Shopee-Products-Matching)  
 ### 功能说明  
-data_loader.py 从train.csv中读取图片path，读取图片并转换成tensor，方便torch接口  
-Methods.py 面向对象地实现各种图像特征提取方法  
-p_hash.py 生成图片的感知哈希值，并与原始数据比较  
-test.py 一个利用预训练的Resnet50提取图片特征的demo  
-
-### TODO  
-~~搭建一个Methods.py文件 把不同种特征提取方案(KNN, SIFT, CNN等)封装在各自的库中，统一接口~~  
-~~图片特征提取的pipeline~~  
-phash算法  
-将不同特征矩阵ensemble 进行聚类  
+data_loader.py 数据读取、测试集训练集划分等数据相关的库  
+Methods.py 图片和文本的各种特征提取方法实现  
+evaluate.py 特征分析、实验结果分析以及统计学相关库函数
+demo_XXX.py 执行函数  
   
 ### 系统环境  
 首先需要新建conda虚拟环境  
@@ -61,6 +55,7 @@ train from Scratch从头开始训练，因为训练BERT等大型网络需要大�
 ```bash
 python demo_EsNet.py
 ```
+
 
 ### 实验记录  
 文本:  
