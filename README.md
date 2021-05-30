@@ -26,8 +26,17 @@ pip install gensium Pandas tqdm opencv-python
 
 ### 方法  
 1. 图片特征处理  
+利用Pretrained EfficientNet-v5和Pretrained ResNet50进行模型推理，使用的默认使用[0]号GPU进行计算： 
+```python
+imgmodel = P_Efnetb5().to(device)
+#imgmodel = P_Resnetb5().to(device)
+```
 ```bash
 python demo_img.py
+```
+train from Scratch从头开始训练，因为训练Resnet等大型网络需要大量的资源，而且数据集本身过小，所以我们采用LeNet进行训练：
+```bash
+python demo_leNet.py
 ```
 
 2. 文本特征处理  
