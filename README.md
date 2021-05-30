@@ -25,12 +25,12 @@ pip install gensium Pandas tqdm opencv-python
 ```
 
 ### 方法  
-1 图片特征处理  
+1. 图片特征处理  
 ```bash
 python demo_img.py
 ```
 
-2 文本特征处理  
+2. 文本特征处理  
 ```bash
 python demo_text.py
 ```
