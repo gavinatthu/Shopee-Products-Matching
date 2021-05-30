@@ -26,7 +26,10 @@ pip install gensium Pandas tqdm opencv-python
 
 ### 方法  
 #### 代码结构  
-
+本项目采用结构化方法面向对象的方法开发，基于python和pytorch实现主要代码功能，并在服务器端(E5, RTX3090)进行训练，所有的特征提取方法封装在Methods.py中，数据读取、测试集训练集划分等数据相关的库封装在data_loader.py中，特征分析、实验结果分析以及统计学相关库函数封装在evaluate.py，执行函数封装在demo_XXX.py中。数据集放在以相对路径表示的文件夹中：  
+```python
+DATA_PATH = '../shopee_product_matching/'
+```
 #### 图片特征处理  
 利用在demo_img.py中根据Pretrained EfficientNet-v5和Pretrained ResNet50进行模型选择： 
 ```python
