@@ -25,7 +25,9 @@ pip install gensium Pandas tqdm opencv-python
 ```
 
 ### 方法  
-1. 图片特征处理  
+#### 代码结构  
+
+#### 图片特征处理  
 利用在demo_img.py中根据Pretrained EfficientNet-v5和Pretrained ResNet50进行模型选择： 
 ```python
 imgmodel = P_Efnetb5().to(device)
@@ -43,7 +45,7 @@ SIFT特征提取方法：
 ```bash
 python demo_SIFT.py
 ```
-2. 文本特征处理  
+#### 文本特征处理  
 运行demo_text.py可以同时输出TF_IDF和Fast_Text两种方法的实验结果：
 ```bash
 python demo_text.py
