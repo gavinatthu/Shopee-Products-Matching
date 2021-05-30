@@ -55,3 +55,8 @@ train from Scratch从头开始训练，因为训练BERT等大型网络需要大�
 ```bash
 python demo_EsNet.py
 ```
+### 图片-文本特征处理  
+运行demo_text_img.py 可以进行图片和文本特征组合的实验结果：
+```bash
+python demo_text_img.py
+```
