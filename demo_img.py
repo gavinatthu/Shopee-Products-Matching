@@ -1,61 +1,96 @@
 import torch
+import torch.nn.functional as F
 import numpy as np
+import time
+from tqdm import tqdm
 from data_loader import *
 from Methods import *
 
-
-from sklearn.preprocessing import normalize
 from sklearn.metrics import f1_score
 import os
 
-os.environ["CUDA_VISIBLE_deviceS"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
-device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 DATA_PATH = '../shopee_product_matching/'
 BATCH_SIZE = 100
 IMG_SIZE = 512
 
-#train = read_sort(DATA_PATH)
-train, test, train_path, test_path = read(DATA_PATH)
+start = time.time()
 
-imagedataset = Dataloader(train_path[:BATCH_SIZE], IMG_SIZE, IMG_SIZE)
+train, test, train_path, test_path, _ = read_1(DATA_PATH)
 
-imageloader = torch.utils.data.DataLoader(
-    imagedataset,
-    BATCH_SIZE, shuffle=False, num_workers=2)
+imagedataset = Dataloader(train, train_path, IMG_SIZE, IMG_SIZE)
+test_set = Dataloader(test, test_path, IMG_SIZE, IMG_SIZE)
+
+imageloader = torch.utils.data.DataLoader(imagedataset, BATCH_SIZE, shuffle=False, num_workers=2)
+testloader = torch.utils.data.DataLoader(test_set, BATCH_SIZE, shuffle=False, num_workers=2)
 
 
-imgmodel = ShopeeImageEmbeddingNet().to(device)
+imgmodel = P_Efnetb5().to(device)
+#imgmodel = P_Resnetb5().to(device)
 
-imagefeat = []
+# 训练集特征提取
+imagefeat, imagelabel = [], []
 with torch.no_grad():
-    for i, data in enumerate(imageloader):
+    for data, label in tqdm(imageloader):
         data = data.to(device)
+        label = label.to(device)
+        imagelabel.append(label)
         feat = imgmodel(data)
-        imagefeat.append(feat.data.cpu().numpy())
+        imagefeat.append(feat)
+imagefeat = torch.cat(imagefeat, dim=0)
+imagelabel = torch.cat(imagelabel, dim=0)
+# imagefeat.shape = (31250,300)
+# 通过修改最后一个隐层节点数统一到(31250,300)，和文本做特征组合，跨模态学习
+# Feature -> imagefeat
+
+# 测试集特征提取
+testfeat, testlabel = [], []
+with torch.no_grad():
+    for data, label in tqdm(testloader):
+        data = data.to(device)
+        label = label.to(device)
+        testlabel.append(label)
+        feat = imgmodel(data)   
+        testfeat.append(feat)
+testfeat = torch.cat(testfeat, dim=0)
+testlabel = torch.cat(testlabel, dim=0)
+
+# testfeat.shape = (3000,300)
+
+# Covariance Matrix
+cor = torch.mm(testfeat, imagefeat.T)
+# cor.shape = (3000, 31250)
+# 
+# 这里以下转入CPU操作
+
+imagelabel = imagelabel.data.cpu().numpy()
+testlabel = testlabel.data.cpu().numpy()
+cor = cor.data.cpu().numpy()
+top_index = np.argsort(-cor, axis=1)
 
 
-imagefeat = np.squeeze(imagefeat)                         # 压缩之前多的单元素维度
-imagefeat = normalize(imagefeat)                          # 用sklearn实现的归一化 可以用numpy改写
+top20_acc, top5_acc, top1_acc = 0, 0, 0
+for k in range(testfeat.shape[0]):
+    if (testlabel[k] in imagelabel[top_index[k]][:1]): 
+        print(imagelabel[top_index[0]])
+        print('Success top1! Label=', testlabel[k])
+        top1_acc += 1
+        top5_acc += 1
+        top20_acc += 1
+    elif (testlabel[k] in imagelabel[top_index[k]][:5]): 
+        print('Success top5! Label=', testlabel[k])
+        top5_acc += 1
+        top20_acc += 1
+    elif (testlabel[k] in imagelabel[top_index[k]][:20]): 
+        print('Success top20! Label=', testlabel[k])
+        top20_acc += 1
+    else:
+        print('Fault Label=', testlabel[k])
+print('acc1=', top1_acc)
+print('acc5=', top5_acc)
+print('acc20=', top20_acc)
+print('time=', time.time() - start)
 
-
-INDEX = 2       # 输入待检索的图片序号
-TOP_K = 5       # 输出前5个最相似的序号
-
-cor = np.dot(imagefeat[INDEX], imagefeat.T)
-top_index = np.argsort(-cor)[0:TOP_K]                     # 对于后验可以划分一个合适的界限
-
-print("Posterior:",cor[top_index])
-print("Predicted group:",train.iloc[top_index])
-print("Target group:",train.head())
-
-# 简单算一个平均F1 score，由于训练和测试在同一个图片集，故取第二相似的图
-y_true = np.zeros(BATCH_SIZE)
-y_pred = np.zeros(BATCH_SIZE)
-for INDEX in range(BATCH_SIZE):
-    cor = np.dot(imagefeat[INDEX], imagefeat.T)
-    top_index = np.argsort(-cor)[0:TOP_K]
-    y_true[INDEX] = train.iloc[INDEX][4]
-    y_pred[INDEX] = train.iloc[top_index[1]][4]
-print('f1_score:',f1_score(y_true, y_pred, average='micro'))
