@@ -13,16 +13,25 @@ phash算法
 将不同特征矩阵ensemble 进行聚类  
   
 ### 系统环境  
-Python 3.8.8  
-Pytorch 1.8.1  
-CUDA 11.1  
-Torchvision 0.9.1  
-Torchtext 0.9.1  
-gensim 4.0.1  
-Pandas 1.2.3  
-Numpy 1.19.5  
+首先需要新建conda虚拟环境  
+```bash
+conda create -n shopee_matching python=3.9  
+conda install pytorch torchvision torchtext cudatoolkit=11.1  
+```
+安装关键依赖项：  
+```bash
+pip install gensium Pandas tqdm opencv-python 
+```
 
 ### 方法  
+1 图片特征处理  
+```bash
+$ conda activate ljw_py38  
+$ cd ljw/shopee  
+$ python demo_text.py
+```
+
+2 文本特征处理  
 ```bash
 $ conda activate ljw_py38  
 $ cd ljw/shopee  
