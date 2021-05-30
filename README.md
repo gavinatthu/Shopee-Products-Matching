@@ -3,7 +3,7 @@
 ### 功能说明  
 data_loader.py 数据读取、测试集训练集划分等数据相关的库  
 Methods.py 图片和文本的各种特征提取方法实现  
-evaluate.py 特征分析、实验结果分析以及统计学相关库函数
+evaluate.py 特征分析、实验结果分析以及统计学相关库函数  
 demo_XXX.py 执行函数  
   
 ### 系统环境  
@@ -55,19 +55,3 @@ train from Scratch从头开始训练，因为训练BERT等大型网络需要大�
 ```bash
 python demo_EsNet.py
 ```
-
-
-### 实验记录  
-文本:  
-Methods|Top1|Top5|Top20|Time(s)
----|:--:|:--:|:--:|---:
-Tf-idf|67.8%|85.3%|92.9%|239.0
-Fasttext|45.5%|55.7%|63.2%|16415.9
-
----
-图片:  
-Methods|Top1|Top5|Top20|Time(s)
----|:--:|:--:|:--:|---:
-ResNet50|68.4%|77.7%|83.3%|353.2
-Efficientnet-B5|69.0%|78.6%|84.37%|361.6
-SIFT|-|-|-|-
