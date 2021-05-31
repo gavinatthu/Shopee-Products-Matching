@@ -13,9 +13,9 @@ conda create -n shopee_matching python=3.9
 conda activate shopee_matching   
 conda install pytorch torchvision torchtext cudatoolkit=11.1  
 ```
-安装关键依赖项：  
+pip(清华TUNA源)安装关键依赖项：  
 ```bash
-pip install gensium Pandas tqdm opencv-python  
+pip install gensim pandas tqdm opencv-python -i https://pypi.tuna.tsinghua.edu.cn/simple  
 ```
 ### 代码结构  
 本项目采用结构化方法面向对象的方法开发，基于python和pytorch实现主要代码功能，并在服务器端(E5, RTX3090)进行训练，所有的特征提取方法封装在Methods.py中，数据读取、测试集训练集划分等数据相关的库封装在data_loader.py中，特征分析、实验结果分析以及统计学相关库函数封装在evaluate.py，执行函数封装在demo_XXX.py中。数据集放在以相对路径表示的文件夹中：  
